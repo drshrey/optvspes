@@ -2,18 +2,25 @@ package main
 
 import (
 	"encoding/json"
-
-	"github.com/lineback/alchemyapi_go/alchemyAPI"
-
+	"fmt"
 	"io/ioutil"
 	"log"
 	"net/url"
 	"os"
+	"strconv"
 	"strings"
+	"time"
+
+	"github.com/lineback/alchemyapi_go/alchemyAPI"
+	"github.com/mitchellh/mapstructure"
 )
 
-type sentimentScore struct {
-	DocSentiment interface{}
+type Score struct {
+	Status       string
+	Usage        string
+	Url          string
+	Language     string
+	DocSentiment map[string]interface{}
 }
 
 type tweet struct {
@@ -21,27 +28,67 @@ type tweet struct {
 }
 
 func main() {
+	startTime := time.Now()
 	//Parse tweets into "tweet" struct format
-	user_tweets := getTweets("user.json")
+	userTweets := getTweets("user.json")
 
 	//Get Document Sentiment scores from processSentiment function
-	var testSentiment chan sentimentScore = make(chan sentimentScore)
-	go processSentiment(user_tweets, testSentiment)
-	go getScores(testSentiment)
+	testSentiment := make(chan map[string]interface{})
 
 	//Use channels to send information from processSentiment function value to getScores function value without any latency
+	go processSentiment(userTweets, testSentiment)
+
+	var agg []float64
+	//Run channel
+	for s := range testSentiment {
+		var m Score
+		err := mapstructure.Decode(s, &m)
+		if err != nil {
+			log.Println("ERROR WHILE DECODING MAP INTERFACE STRING THING")
+			return
+		}
+		if m.DocSentiment["score"] == nil {
+			continue
+		}
+		score, err := strconv.ParseFloat(m.DocSentiment["score"].(string), 64)
+		if err != nil {
+			log.Println("ERROR WHILE RUNNING STRING CONVERSION IN MAIN")
+			return
+		}
+		agg = append(agg, score)
+		testSum := sumFloats(agg)
+		fmt.Println("Current Sum is:", testSum)
+	}
+	//Sum everything up in the slice
+	sum := sumFloats(agg)
+	fmt.Println("Final sum is:", sum)
+	endTime := time.Now()
+	fmt.Println("Start time is,", startTime)
+	fmt.Println("End time is", endTime)
+	if sum > 0 {
+		fmt.Println("You're probably an optimist.")
+	} else {
+		fmt.Println("You're probably a pessimist.")
+	}
 }
 
 /*
-Through the testSentiment channel, this function takes the score and returns an array of ints (to eventually be aggregated)
+Function that sums everything in the slice
 */
-func getScores(testSentiment chan sentimentScore)
+func sumFloats(toAdd []float64) (sum float64) {
+	var result float64
+	for _, v := range toAdd {
+		result += v
+	}
+	return result
+}
 
 /*
 Function that parses tweets from a json file, and returns an array of tweets
 */
 
 func getTweets(filename string) (tweets []tweet) {
+	fmt.Println("STARTING getTweets")
 	configFile, err := os.Open(filename)
 	if err != nil {
 		log.Println("Error at opening file")
@@ -64,9 +111,9 @@ func getTweets(filename string) (tweets []tweet) {
 Function that takes parsed tweets sends a document sentiment score of each tweet through a channel
 */
 
-func processSentiment(tweets []tweet, testSentiment chan sentimentScore) {
+func processSentiment(tweets []tweet, testSentiment chan map[string]interface{}) {
+	fmt.Println("STARTING processSentiment")
 	//Variable to store temporary sentiment score for type assertion (for passing through channel)
-	var m sentimentScore
 
 	keyBytes, err := ioutil.ReadFile("api_key.txt")
 	if err != nil {
@@ -74,14 +121,16 @@ func processSentiment(tweets []tweet, testSentiment chan sentimentScore) {
 		return
 	}
 	sentiment_doctor := alchemyAPI.NewAlchemist(strings.NewReader(string(keyBytes[:40])))
-	for _, v := range tweets {
+	for k, v := range tweets {
+		if k == 201 {
+			break
+		}
 		score, err := sentiment_doctor.Sentiment("text", url.Values{}, v.Text)
+		fmt.Println(score)
 		if err != nil {
 			log.Println("Error while doing sentiment analysis on function")
 			return
 		}
-		docSentiment := score["docSentiment"]
-		m.DocSentiment = docSentiment
-		do <- docSentiment
+		testSentiment <- score
 	}
 }
