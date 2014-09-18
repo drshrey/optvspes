@@ -21,7 +21,7 @@ This should just include your api key you received from Alchemy.
 Simple Functionality:
 go run backend.go
 
-Functionality for Different User names:
+Functionality for different user names:
 coming soon
 
 APIs/external libraries Used:
