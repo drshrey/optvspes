@@ -10,6 +10,9 @@ Right now, I'm using the Alchemy API which means the daily call limit is 1000 pe
 
 For now, I've attached a sample json file for using with the tool. Since one would need a Twitter account for api key details and all that jazz, I've just attached this json file to use (simply to see the tool's functionality). 
 
+Further Improvements:
+
+Develop an independent semantic analysis library OR port NLTK's semantic libraries into Go
 
 
 ####All you have to do is include this file:

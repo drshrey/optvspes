@@ -59,7 +59,7 @@ func main() {
 	if finalScore <= 0 {
 		fmt.Println("You're probably a negative person")
 	} else {
-		fmt.Println("Your probably a positive person")
+		fmt.Println("You're probably a positive person")
 	}
 
 	fmt.Println("Start time was ...", startTime)
@@ -71,9 +71,8 @@ Function that aggregates scores from a slice of floats
 */
 func aggregateScores(input []float64) (output float64) {
 	var out float64
-	for k, v := range input {
+	for _, v := range input {
 		out += v
-		fmt.Println("The current sum is ", v, "at position", k)
 	}
 	return out
 }
@@ -85,7 +84,6 @@ func getScore(input Score) (output float64) {
 	if input.DocSentiment["score"] == nil {
 		return
 	}
-	fmt.Println("getScore: ", input.DocSentiment["score"])
 	out := input.DocSentiment["score"].(string)
 	floatOut, err := strconv.ParseFloat(out, 64)
 	if err != nil {
@@ -107,7 +105,6 @@ func convertToScoreStruct(input []map[string]interface{}) (output []Score, err e
 			log.Println(err)
 			return nil, err
 		}
-		fmt.Println("convertToScoreStruct:", out)
 		out = append(out, m)
 	}
 	return out, nil
@@ -162,7 +159,6 @@ func processSentiment(tweets []tweet, testSentiment chan map[string]interface{})
 			log.Println("Error while doing sentiment analysis on function")
 			return
 		}
-		fmt.Println(score)
 		res = append(res, score)
 		//testSentiment <- score
 	}
