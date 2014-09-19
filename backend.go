@@ -35,52 +35,82 @@ func main() {
 	//Get Document Sentiment scores from processSentiment function
 	testSentiment := make(chan map[string]interface{})
 
-	//Use channels to send information from processSentiment function value to getScores function value without any latency
-	go processSentiment(userTweets, testSentiment)
+	//Process Sentiment function to get map
+	mapScores := processSentiment(userTweets, testSentiment)
 
-	var agg []float64
-	//Run channel
-	for s := range testSentiment {
-		var m Score
-		err := mapstructure.Decode(s, &m)
-		if err != nil {
-			log.Println("ERROR WHILE DECODING MAP INTERFACE STRING THING")
-			return
-		}
-		if m.DocSentiment["score"] == nil {
-			continue
-		}
-		score, err := strconv.ParseFloat(m.DocSentiment["score"].(string), 64)
-		if err != nil {
-			log.Println("ERROR WHILE RUNNING STRING CONVERSION IN MAIN")
-			return
-		}
-		agg = append(agg, score)
-		testSum := sumFloats(agg)
-		fmt.Println("Current Sum is:", testSum)
+	//Returns Score structs from map[string]interfaces{}
+	scores, err := convertToScoreStruct(mapScores)
+	if err != nil {
+		log.Println("ERROR WHILE DOING convertToScoreStruct")
+		return
 	}
-	//Sum everything up in the slice
-	sum := sumFloats(agg)
-	fmt.Println("Final sum is:", sum)
+
+	//Gets the floating point score values from the Score struct
+	var listOfScores []float64
+	for _, v := range scores {
+		floatScore := getScore(v)
+		listOfScores = append(listOfScores, floatScore)
+	}
+
+	//Aggregates slice of scores using aggregateScores function
+	finalScore := aggregateScores(listOfScores)
 	endTime := time.Now()
-	fmt.Println("Start time is,", startTime)
-	fmt.Println("End time is", endTime)
-	if sum > 0 {
-		fmt.Println("You're probably an optimist.")
+	fmt.Println("Final sum is:", finalScore)
+	if finalScore <= 0 {
+		fmt.Println("You're probably a negative person")
 	} else {
-		fmt.Println("You're probably a pessimist.")
+		fmt.Println("Your probably a positive person")
 	}
+
+	fmt.Println("Start time was ...", startTime)
+	fmt.Println("Finish time was ...", endTime)
 }
 
 /*
-Function that sums everything in the slice
+Function that aggregates scores from a slice of floats
 */
-func sumFloats(toAdd []float64) (sum float64) {
-	var result float64
-	for _, v := range toAdd {
-		result += v
+func aggregateScores(input []float64) (output float64) {
+	var out float64
+	for k, v := range input {
+		out += v
+		fmt.Println("The current sum is ", v, "at position", k)
 	}
-	return result
+	return out
+}
+
+/*
+Function that takes a Score struct and returns the float score property
+*/
+func getScore(input Score) (output float64) {
+	if input.DocSentiment["score"] == nil {
+		return
+	}
+	fmt.Println("getScore: ", input.DocSentiment["score"])
+	out := input.DocSentiment["score"].(string)
+	floatOut, err := strconv.ParseFloat(out, 64)
+	if err != nil {
+		log.Println("ERROR IN RUNNING getScore function")
+		return
+	}
+	return floatOut
+}
+
+/*
+Function that processes map[string]interface{} from processSentiment function
+*/
+func convertToScoreStruct(input []map[string]interface{}) (output []Score, err error) {
+	var out []Score
+	for _, v := range input {
+		var m Score
+		err := mapstructure.Decode(v, &m)
+		if err != nil {
+			log.Println(err)
+			return nil, err
+		}
+		fmt.Println("convertToScoreStruct:", out)
+		out = append(out, m)
+	}
+	return out, nil
 }
 
 /*
@@ -111,7 +141,7 @@ func getTweets(filename string) (tweets []tweet) {
 Function that takes parsed tweets sends a document sentiment score of each tweet through a channel
 */
 
-func processSentiment(tweets []tweet, testSentiment chan map[string]interface{}) {
+func processSentiment(tweets []tweet, testSentiment chan map[string]interface{}) (result []map[string]interface{}) {
 	fmt.Println("STARTING processSentiment")
 	//Variable to store temporary sentiment score for type assertion (for passing through channel)
 
@@ -121,16 +151,20 @@ func processSentiment(tweets []tweet, testSentiment chan map[string]interface{})
 		return
 	}
 	sentiment_doctor := alchemyAPI.NewAlchemist(strings.NewReader(string(keyBytes[:40])))
+	var res []map[string]interface{}
 	for k, v := range tweets {
-		if k == 201 {
+		if k == 100 {
 			break
 		}
+
 		score, err := sentiment_doctor.Sentiment("text", url.Values{}, v.Text)
-		fmt.Println(score)
 		if err != nil {
 			log.Println("Error while doing sentiment analysis on function")
 			return
 		}
-		testSentiment <- score
+		fmt.Println(score)
+		res = append(res, score)
+		//testSentiment <- score
 	}
+	return res
 }
